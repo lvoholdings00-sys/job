@@ -188,7 +188,14 @@ window.JOBS = [
 
   window.addEventListener('load', async () => {
     try {
-      await Clerk.load();
+      // FIX: this domain (job.careers.wearelvo.com) is not the Clerk instance's
+      // primary domain — it needs to be told it's a satellite so Clerk can
+      // complete the cross-domain session handshake instead of hanging forever.
+      await Clerk.load({
+        isSatellite: true,
+        domain: 'job.careers.wearelvo.com',
+        signInUrl: signInUrl,
+      });
     } catch (e) {
       veilStatus.textContent = 'Unable to verify access';
       return;
