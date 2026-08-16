@@ -111,7 +111,7 @@ footer{border-top:.5px solid color-mix(in srgb,var(--accent) 20%,transparent);pa
   <!-- Access veil: blocks all content until Clerk confirms a signed-in user -->
   <div id="gateVeil">
     <div class="veil-spinner"></div>
-    <p class="veil-mark">𝐋𝐕𝐎 Careers</p>
+    <p class="veil-mark">LVO Careers</p>
     <p class="veil-status" id="veilStatus">Verifying access…</p>
   </div>
 
@@ -125,7 +125,6 @@ footer{border-top:.5px solid color-mix(in srgb,var(--accent) 20%,transparent);pa
       <div class="nav-right">
         <span class="nav-tag" data-scramble>Open Roles &amp; Applications</span>
         <div id="navUserBtn">
-          <a class="nav-dash-link" href="" id="dashLink" style="font-family:'Cinzel',serif;font-size:.48rem;letter-spacing:.3em;color:var(--accent);text-decoration:none;text-transform:uppercase;border:.5px solid color-mix(in srgb,var(--accent) 45%,transparent);padding:.35rem .75rem;transition:background .25s,border-color .25s">→ Dashboard</a>
           <div id="clerkNavBtn"></div>
         </div>
       </div>
@@ -166,58 +165,57 @@ footer{border-top:.5px solid color-mix(in srgb,var(--accent) 20%,transparent);pa
 <script>
 window.LVO_PAGE = {
   accent: '#9C7A3C',
-  dashboardUrl: 'https://job.careers.wearelvo.com',
-  // Hosted Clerk Account Portal (accounts.careers.wearelvo.com), not the marketing careers page.
-  signInUrl: 'https://accounts.careers.wearelvo.com/sign-in'
+  careersUrl: 'https://careers.wearelvo.com'
 };
 
 window.JOBS = [
-  // { title: 'Leasing Coordinator', division: 'vindex', type: 'Full-Time', location: 'Houston, TX', applyUrl: 'https://dashboard.career.wearelvo.com/apply/xxxx' },
+  // { title: 'Leasing Coordinator', division: 'vindex', type: 'Full-Time', location: 'Houston, TX', applyUrl: 'https://jobs.careers.wearelvo.com/apply/xxxx' },
 ];
 </script>
 <script>
+/* Auth wiring mirrors the Alliance dashboard exactly: plain Clerk.load(),
+   same publishable key as the sign-in page (careers.wearelvo.com), no
+   satellite-domain handshake. If there's no session, send the user back
+   to careers.wearelvo.com to sign in. */
 (function () {
-  const { accent, dashboardUrl, signInUrl } = window.LVO_PAGE;
+  const { accent, careersUrl } = window.LVO_PAGE;
   const veil = document.getElementById('gateVeil');
   const veilStatus = document.getElementById('veilStatus');
   const content = document.getElementById('content');
 
-  function goToSignIn() {
-    const redirect = encodeURIComponent(window.location.href);
-    window.location.replace(`${signInUrl}?redirect_url=${redirect}`);
-  }
-
   window.addEventListener('load', async () => {
+    veilStatus.textContent = 'Loading…';
+    let attempts = 0;
+    while (typeof Clerk === 'undefined' && attempts < 30) {
+      await new Promise((r) => setTimeout(r, 200));
+      attempts++;
+    }
+    if (typeof Clerk === 'undefined') {
+      veilStatus.textContent = 'Failed to load — refresh the page';
+      return;
+    }
+
     try {
-      // This domain (job.careers.wearelvo.com) is not the Clerk instance's
-      // primary domain — it needs to be told it's a satellite so Clerk can
-      // complete the cross-domain session handshake against the hosted
-      // Account Portal at accounts.careers.wearelvo.com.
-      await Clerk.load({
-        isSatellite: true,
-        domain: 'job.careers.wearelvo.com',
-        signInUrl: signInUrl,
-      });
+      veilStatus.textContent = 'Verifying access…';
+      await Clerk.load();
     } catch (e) {
-      veilStatus.textContent = 'Unable to verify access';
+      veilStatus.textContent = 'Auth error — refresh the page';
       return;
     }
 
     if (!Clerk.user) {
       veilStatus.textContent = 'Redirecting to sign in…';
-      goToSignIn();
+      window.location.replace(careersUrl);
       return;
     }
 
-    // Also catch sign-outs that happen while this tab is open
-    Clerk.addListener(({ user }) => { if (!user) goToSignIn(); });
+    Clerk.addListener(({ user }) => { if (!user) window.location.href = careersUrl; });
 
     unlockPage(Clerk.user);
   });
 
   function unlockPage(user) {
     document.getElementById('welcomeLine').textContent = `Welcome back, ${user.firstName || 'Applicant'}`;
-    document.getElementById('dashLink').href = dashboardUrl;
     Clerk.mountUserButton(document.getElementById('clerkNavBtn'), {
       appearance: {
         variables: { colorPrimary: accent, borderRadius: '0px', fontFamily: "'Cormorant Garamond',Georgia,serif" },
@@ -259,7 +257,7 @@ window.JOBS = [
           <span class="job-meta">${j.type || ''}${j.type && j.location ? ' · ' : ''}${j.location || ''}</span>
           <div class="job-tags"><span class="job-tag">${(j.division || 'general').replace(/^\w/, c => c.toUpperCase())}</span></div>
         </div>
-        <a class="job-apply" href="${j.applyUrl || dashboardUrl}">Apply →</a>`;
+        <a class="job-apply" href="${j.applyUrl || '#'}">Apply →</a>`;
       wrap.appendChild(card);
     });
   }
